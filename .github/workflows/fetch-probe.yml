@@ -7,15 +7,18 @@ on:
     paths: [.github/workflows/fetch-probe.yml]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch source pages and dump raw HTML
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: Fetch source pages and save raw responses
         run: |
-          mkdir -p out
+          mkdir -p probe
           UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
           i=0
           for u in \
@@ -26,16 +29,18 @@ jobs:
             i=$((i+1))
             echo "=== [$i] $u ==="
             curl -sS -L -A "$UA" -H 'Accept: text/html,application/xhtml+xml' \
-                 --max-time 30 -o "out/$i.html" -D "out/$i.headers" "$u" || echo "curl failed for $u"
-            echo "--- headers ---"; head -c 1200 "out/$i.headers" 2>/dev/null || true
-            echo "--- size ---"; wc -c "out/$i.html" 2>/dev/null || true
-            echo "--- first 3000 bytes ---"; head -c 3000 "out/$i.html" 2>/dev/null || true
+                 --max-time 30 -o "probe/$i.html" -D "probe/$i.headers" "$u" || echo "curl failed for $u"
+            echo "--- headers ---"; head -c 1200 "probe/$i.headers" 2>/dev/null || true
+            echo "--- size ---"; wc -c "probe/$i.html" 2>/dev/null || true
+            echo "--- first 1200 bytes ---"; head -c 1200 "probe/$i.html" 2>/dev/null || true
             echo
           done
-      - name: Upload raw responses
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: probe-responses
-          path: out/
-          if-no-files-found: warn
+      - name: Commit raw responses back to the branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add probe
+          git diff --cached --quiet && { echo "no new probe data"; exit 0; }
+          git commit -m "probe: raw source responses"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
