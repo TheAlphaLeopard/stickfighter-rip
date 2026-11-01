@@ -35,6 +35,8 @@ jobs:
           CHROME_PATH: ${{ steps.chrome.outputs.path }}
         run: |
           echo "CHROME_PATH=$CHROME_PATH" | tee live-debug.txt
+          ls -l "$CHROME_PATH" 2>&1 | tee -a live-debug.txt
+          "$CHROME_PATH" --version 2>&1 | tee -a live-debug.txt || true
           cat > /tmp/live-verify.js <<'JS'
           const fs = require('fs');
           const puppeteer = require('puppeteer-core');
@@ -79,12 +81,13 @@ jobs:
             }
           })();
           JS
-          node /tmp/live-verify.js 2>&1 | tee -a live-debug.txt
+          NODE_PATH="$PWD/node_modules" node /tmp/live-verify.js 2>&1 | tee -a live-debug.txt
       - name: Commit report back to the branch
         if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -rf node_modules
           git add -A
           git diff --cached --quiet && { echo "no report produced"; exit 0; }
           git commit -m "verify: live URL browser report"
