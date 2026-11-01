@@ -8,14 +8,14 @@ on:
       - 'arena/**'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  chrome:
+  local:
+    name: Local build in Chrome
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -29,7 +29,6 @@ jobs:
       - name: Locate system Chrome
         id: chrome
         run: |
-          set +e
           for c in google-chrome google-chrome-stable chromium chromium-browser; do
             p="$(command -v "$c")"
             if [ -n "$p" ]; then
@@ -38,42 +37,55 @@ jobs:
               exit 0
             fi
           done
-          echo "No system Chrome found; puppeteer will use its bundled browser if present."
+          echo "path=/usr/bin/google-chrome" >> "$GITHUB_OUTPUT"
 
-      - name: Run the game in real Chrome
-        id: run
-        continue-on-error: true
+      - name: Play the local build in real Chrome
         env:
-          CHROME_PATH: ${{ steps.chrome.outputs.path || '/usr/bin/google-chrome' }}
+          CHROME_PATH: ${{ steps.chrome.outputs.path }}
         run: node tests/browser.js
 
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: browser-screenshots
-          path: |
-            screenshots/
-            ci/
+          name: local-screenshots
+          path: screenshots/
           if-no-files-found: warn
-          retention-days: 14
 
-      # Workflow logs live on a host some environments cannot read; publish the
-      # report (and the raw browser screenshots) to a branch instead.
-      - name: Publish report branch
+  live:
+    name: Published URL in Chrome
+    needs: local
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install puppeteer-core
+        run: npm install --no-save --no-audit --no-fund puppeteer-core@23
+
+      - name: Locate system Chrome
+        id: chrome
+        run: |
+          for c in google-chrome google-chrome-stable chromium chromium-browser; do
+            p="$(command -v "$c")"
+            if [ -n "$p" ]; then
+              echo "path=$p" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "path=/usr/bin/google-chrome" >> "$GITHUB_OUTPUT"
+
+      - name: Boot https://thealphaleopard.github.io/stickfighter-rip/
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.path }}
+        run: node tests/live.js
+
+      - name: Upload screenshots
         if: always()
-        run: |
-          set -e
-          mkdir -p ci
-          git config user.name "browser-check"
-          git config user.email "browser-check@users.noreply.github.com"
-          git checkout -q -B ci/browser-report
-          git add -A ci screenshots
-          git commit -q -m "ci: browser report [skip ci]" || echo "nothing to commit"
-          git push -q --force origin ci/browser-report
-
-      - name: Fail if the game did not work
-        if: steps.run.outcome != 'success'
-        run: |
-          echo "The browser run failed — see ci/browser-report.log on the ci/browser-report branch."
-          exit 1
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-screenshots
+          path: screenshots/
+          if-no-files-found: warn

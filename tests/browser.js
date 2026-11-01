@@ -91,7 +91,7 @@ function serve() {
   try {
     browser = await puppeteer.launch({
       executablePath: CHROME,
-      headless: 'new',
+      headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--mute-audio', '--window-size=1280,900']
     });
   } catch (launchErr) {
