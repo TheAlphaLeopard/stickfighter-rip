@@ -1,0 +1,78 @@
+name: Live verify
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install puppeteer-core
+        run: npm install --no-save --no-audit --no-fund puppeteer-core@23
+      - name: Locate system Chrome
+        id: chrome
+        run: |
+          for c in google-chrome google-chrome-stable chromium chromium-browser; do
+            p="$(command -v "$c")"
+            if [ -n "$p" ]; then echo "path=$p" >> "$GITHUB_OUTPUT"; "$p" --version; exit 0; fi
+          done
+          echo "path=/usr/bin/google-chrome" >> "$GITHUB_OUTPUT"
+      - name: Boot the published URL in Chrome
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.path }}
+        run: |
+          cat > /tmp/live-verify.js <<'JS'
+          const fs = require('fs');
+          const puppeteer = require('puppeteer-core');
+          (async () => {
+            const browser = await puppeteer.launch({
+              executablePath: process.env.CHROME_PATH,
+              headless: true,
+              args: ['--no-sandbox', '--disable-dev-shm-usage', '--enable-webgl',
+                     '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
+                     '--ignore-gpu-blocklist'],
+              defaultViewport: { width: 1280, height: 720 },
+              protocolTimeout: 120000,
+            });
+            const page = await browser.newPage();
+            const errors = [], failed = [], bad = [], external = [];
+            page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+            page.on('pageerror', e => errors.push('PAGEERROR: ' + e.message));
+            page.on('requestfailed', r => failed.push(r.url() + ' :: ' + (r.failure() && r.failure().errorText)));
+            page.on('response', r => { if (r.status() >= 400) bad.push(r.status() + ' ' + r.url()); });
+            page.on('request', r => { try { const u = new URL(r.url()); if (!u.hostname.endsWith('github.io')) external.push(r.url()); } catch {} });
+            await page.goto('https://thealphaleopard.github.io/stickfighter-rip/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+            try { await page.waitForSelector('canvas', { timeout: 45000 }); } catch (e) { errors.push('NO CANVAS: ' + e.message); }
+            await new Promise(r => setTimeout(r, 10000));
+            const state = await page.evaluate(() => ({
+              title: document.title, url: location.href,
+              canvas: [...document.querySelectorAll('canvas')].map(c => `${c.width}x${c.height}`),
+              poki: typeof window.PokiSDK,
+            }));
+            await page.screenshot({ path: 'live-screenshot.png' });
+            const report = { state, errors, failed, bad, externalCount: external.length, externalSample: external.slice(0, 10) };
+            fs.writeFileSync('live-report.json', JSON.stringify(report, null, 2));
+            console.log(JSON.stringify(report, null, 2));
+            await browser.close();
+          })().catch(e => { console.error('FATAL', e); process.exit(1); });
+          JS
+          node /tmp/live-verify.js
+      - name: Commit report back to the branch
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add live-report.json live-screenshot.png
+          git diff --cached --quiet && { echo "no report produced"; exit 0; }
+          git commit -m "verify: live URL browser report"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
