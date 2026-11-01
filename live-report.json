@@ -1,0 +1,17 @@
+{
+  "state": {
+    "title": "Stick Fighter",
+    "url": "https://thealphaleopard.github.io/stickfighter-rip/",
+    "canvas": [
+      "1280x720"
+    ],
+    "poki": "object"
+  },
+  "errors": [],
+  "failed": [],
+  "bad": [],
+  "externalCount": 0,
+  "externalSample": [],
+  "fatal": null,
+  "ok": true
+}
