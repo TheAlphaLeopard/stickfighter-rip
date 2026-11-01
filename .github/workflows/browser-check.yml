@@ -1,0 +1,91 @@
+name: Browser check
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 'arena/**'
+
+permissions:
+  contents: read
+
+jobs:
+  local:
+    name: Local build in Chrome
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Headless smoke test (stubbed DOM)
+        run: node tests/smoke.js
+
+      - name: Install puppeteer-core
+        run: npm install --no-save --no-audit --no-fund puppeteer-core@23
+
+      - name: Locate system Chrome
+        id: chrome
+        run: |
+          for c in google-chrome google-chrome-stable chromium chromium-browser; do
+            p="$(command -v "$c")"
+            if [ -n "$p" ]; then
+              echo "path=$p" >> "$GITHUB_OUTPUT"
+              "$p" --version
+              exit 0
+            fi
+          done
+          echo "path=/usr/bin/google-chrome" >> "$GITHUB_OUTPUT"
+
+      - name: Play the local build in real Chrome
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.path }}
+        run: node tests/browser.js
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-screenshots
+          path: screenshots/
+          if-no-files-found: warn
+
+  live:
+    name: Published URL in Chrome
+    needs: local
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install puppeteer-core
+        run: npm install --no-save --no-audit --no-fund puppeteer-core@23
+
+      - name: Locate system Chrome
+        id: chrome
+        run: |
+          for c in google-chrome google-chrome-stable chromium chromium-browser; do
+            p="$(command -v "$c")"
+            if [ -n "$p" ]; then
+              echo "path=$p" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "path=/usr/bin/google-chrome" >> "$GITHUB_OUTPUT"
+
+      - name: Boot https://thealphaleopard.github.io/stickfighter-rip/
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.path }}
+        run: node tests/live.js
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-screenshots
+          path: screenshots/
+          if-no-files-found: warn
