@@ -1,133 +1,27 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Stick Fighter · RIP build</title>
-  <meta name="description" content="Stick Fighter (RIP build): a self-contained browser fighting game. Six fighters, story gauntlet, local 1v1 and training mode. No downloads, no plugins." />
-  <meta name="theme-color" content="#05080f" />
-  <meta property="og:title" content="Stick Fighter · RIP build" />
-  <meta property="og:description" content="Six fighters. One floor. Fight the gauntlet solo or duel a friend on one keyboard." />
-  <meta property="og:type" content="website" />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2305080f'/%3E%3Cg stroke='%2359a9ff' stroke-width='6' stroke-linecap='round'%3E%3Cpath d='M32 18v18'/%3E%3Cpath d='M32 24 20 32M32 24l12 8'/%3E%3Cpath d='M32 36 24 52M32 36l8 16'/%3E%3C/g%3E%3Ccircle cx='32' cy='12' r='6' fill='%23d9efff'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="css/style.css" />
+<meta charset="UTF-8">
+<title>Stick Fighter</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+<meta name="generator" content="Scirra Construct">
+<meta name="author" content="ARF Games">
+<link rel="icon" type="image/png" href="icons/icon-32.png">
+<link rel="manifest" href="appmanifest.json">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <a class="skip" href="#game">Skip to the game</a>
 
-  <div class="app">
-    <header class="topbar">
-      <div class="brand">
-        <span class="brand__mark" aria-hidden="true">
-          <svg viewBox="0 0 64 64" width="30" height="30">
-            <g stroke="currentColor" stroke-width="6" stroke-linecap="round" fill="none">
-              <path d="M32 18v18" />
-              <path d="M32 24 20 32M32 24l12 8" />
-              <path d="M32 36 24 52M32 36l8 16" />
-            </g>
-            <circle cx="32" cy="12" r="6" fill="currentColor" />
-          </svg>
-        </span>
-        <span class="brand__text">
-          <strong>STICK FIGHTER</strong>
-          <em>RIP build</em>
-        </span>
-      </div>
+<script src="poki-sdk.js"></script>
+<noscript>
+	<div id="notSupportedWrap">
+		<h2 id="notSupportedTitle">This content requires JavaScript</h2>
+		<p class="notSupportedMessage">JavaScript appears to be disabled. Please enable it to view this content.</p>
+	</div>
+</noscript>
+<script src="scripts/supportcheck.js"></script>
+<script src="scripts/main.js" type="module"></script>
 
-      <div class="toolbar">
-        <button id="btn-mute" class="tool" type="button" aria-pressed="false">Sound on</button>
-        <button id="btn-fullscreen" class="tool" type="button">Fullscreen</button>
-      </div>
-    </header>
-
-    <main class="frame" id="frame">
-      <div class="stage">
-        <canvas id="game" width="960" height="540" role="img" aria-label="Stick Fighter game canvas. Use arrow keys or WASD to move, J to punch, K to kick, L to block, U for your special move.">
-          Your browser needs HTML5 canvas to run this game.
-        </canvas>
-
-        <div class="boot" id="boot">
-          <div class="boot__inner">
-            <div class="boot__spinner" aria-hidden="true"></div>
-            <p class="boot__title">Warming up the arena</p>
-            <p class="boot__hint">Loading fighters, stage and sound engine…</p>
-          </div>
-        </div>
-
-        <div class="crash" id="crash" hidden>
-          <div class="crash__inner">
-            <h2>The game hit an error</h2>
-            <p>Something went wrong while booting. Reload the page to try again — the details below help with a bug report.</p>
-            <pre data-crash-message></pre>
-            <button type="button" onclick="location.reload()">Reload</button>
-          </div>
-        </div>
-
-        <div class="touch" id="touch" aria-label="Touch controls">
-          <div class="touch__left">
-            <button class="pad" data-act="left" type="button" aria-label="Move left">&#9664;</button>
-            <button class="pad" data-act="right" type="button" aria-label="Move right">&#9654;</button>
-            <button class="pad pad--jump" data-act="jump" type="button" aria-label="Jump">&#9650;</button>
-          </div>
-          <div class="touch__right">
-            <button class="pad pad--atk" data-act="attack" type="button" aria-label="Light attack">J</button>
-            <button class="pad pad--kick" data-act="kick" type="button" aria-label="Heavy attack">K</button>
-            <button class="pad pad--block" data-act="block" type="button" aria-label="Block">L</button>
-            <button class="pad pad--sp" data-act="special" type="button" aria-label="Special move">U</button>
-          </div>
-        </div>
-      </div>
-
-      <section class="controls" aria-label="Controls">
-        <div class="controls__col">
-          <h2>Player 1</h2>
-          <dl>
-            <div><dt>Move</dt><dd><kbd>A</kbd><kbd>D</kbd> or <kbd>&larr;</kbd><kbd>&rarr;</kbd></dd></div>
-            <div><dt>Jump</dt><dd><kbd>W</kbd> or <kbd>&uarr;</kbd> <span>(double / triple jump)</span></dd></div>
-            <div><dt>Light</dt><dd><kbd>J</kbd></dd></div>
-            <div><dt>Heavy</dt><dd><kbd>K</kbd></dd></div>
-            <div><dt>Block</dt><dd><kbd>L</kbd> <span>tap just before a hit to parry</span></dd></div>
-            <div><dt>Special</dt><dd><kbd>U</kbd> <span>needs a charged meter</span></dd></div>
-          </dl>
-        </div>
-        <div class="controls__col">
-          <h2>Player 2</h2>
-          <dl>
-            <div><dt>Move</dt><dd><kbd>&larr;</kbd><kbd>&rarr;</kbd></dd></div>
-            <div><dt>Jump</dt><dd><kbd>&uarr;</kbd></dd></div>
-            <div><dt>Light</dt><dd><kbd>Num 1</kbd></dd></div>
-            <div><dt>Heavy</dt><dd><kbd>Num 2</kbd></dd></div>
-            <div><dt>Block</dt><dd><kbd>Num 3</kbd></dd></div>
-            <div><dt>Special</dt><dd><kbd>Num 0</kbd></dd></div>
-          </dl>
-          <p class="controls__note">Gamepads work too: left stick, X punch, B heavy, A block, Y special.</p>
-        </div>
-      </section>
-    </main>
-
-    <footer class="footer">
-      <p>
-        <strong>Stick Fighter · RIP build</strong> — an original, self-contained browser fighting game written for this repo.
-        It is not the commercial game of the same name: no third-party build files are redistributed here.
-      </p>
-      <p class="footer__small">
-        <span id="build-tag">static build</span> · canvas 2D · no external requests · <kbd>Esc</kbd> pause · <kbd>M</kbd> mute
-      </p>
-    </footer>
-  </div>
-
-  <noscript>
-    <div class="noscript">Stick Fighter needs JavaScript enabled — the whole game runs locally in your browser.</div>
-  </noscript>
-
-  <script src="js/core.js"></script>
-  <script src="js/roster.js"></script>
-  <script src="js/audio.js"></script>
-  <script src="js/input.js"></script>
-  <script src="js/fx.js"></script>
-  <script src="js/fighter.js"></script>
-  <script src="js/renderer.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/game.js"></script>
 </body>
 </html>
