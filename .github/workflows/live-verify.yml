@@ -2,6 +2,9 @@ name: Live verify
 
 on:
   workflow_dispatch:
+  push:
+    branches: [arena/4d004fea-stickfighter-rip]
+    paths: [.github/workflows/live-verify.yml]
 
 permissions:
   contents: write
