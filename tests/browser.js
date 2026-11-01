@@ -29,10 +29,38 @@ const MIME = {
   '.json': 'application/json'
 };
 
+const pageErrors = [];
+const consoleErrors = [];
 const results = [];
+const logLines = [];
+function log(line) {
+  logLines.push(line);
+  console.log(line);
+}
 function check(ok, label, detail) {
   results.push({ ok, label, detail });
-  console.log((ok ? 'PASS  ' : 'FAIL  ') + label + (detail ? '  — ' + detail : ''));
+  log((ok ? 'PASS  ' : 'FAIL  ') + label + (detail ? '  — ' + detail : ''));
+}
+function writeReport(extra) {
+  try {
+    const dir = path.join(ROOT, 'ci');
+    fs.mkdirSync(dir, { recursive: true });
+    const failed = results.filter((r) => !r.ok).length;
+    const body = [
+      '# browser check report',
+      'chrome: ' + CHROME,
+      'node: ' + process.version,
+      'date: ' + new Date().toISOString(),
+      '',
+      ...logLines,
+      '',
+      'checks: ' + results.length + '   failed: ' + failed
+    ].concat(extra ? ['', 'extra:', String(extra)] : []).join('\n');
+    fs.writeFileSync(path.join(dir, 'browser-report.log'), body + '\n');
+    fs.writeFileSync(path.join(dir, 'browser-report.json'), JSON.stringify({ chrome: CHROME, results, extra: extra ? String(extra) : null }, null, 2));
+  } catch (e) {
+    console.log('could not write report: ' + e.message);
+  }
 }
 
 function serve() {
@@ -55,16 +83,23 @@ function serve() {
 (async () => {
   const server = await serve();
   const base = 'http://127.0.0.1:' + PORT + '/';
-  const pageErrors = [];
-  const consoleErrors = [];
-
   fs.mkdirSync(SHOTS, { recursive: true });
 
-  const browser = await puppeteer.launch({
-    executablePath: CHROME,
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--mute-audio', '--window-size=1280,900']
-  });
+  log('chrome binary: ' + CHROME + ' (exists: ' + fs.existsSync(CHROME) + ')');
+  log('puppeteer-core: ' + require('puppeteer-core/package.json').version);
+  let browser;
+  try {
+    browser = await puppeteer.launch({
+      executablePath: CHROME,
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--mute-audio', '--window-size=1280,900']
+    });
+  } catch (launchErr) {
+    log('LAUNCH FAILED: ' + (launchErr && (launchErr.stack || launchErr.message)));
+    writeReport('launch failed: ' + (launchErr && launchErr.message));
+    process.exit(1);
+  }
+  log('chrome version: ' + (await browser.version()));
 
   try {
     const page = await browser.newPage();
@@ -73,7 +108,11 @@ function serve() {
     page.on('console', (msg) => {
       if (msg.type() === 'error') consoleErrors.push(msg.text());
     });
-    page.on('requestfailed', (req) => pageErrors.push('request failed: ' + req.url()));
+    page.on('requestfailed', (req) => {
+    const err = (req.failure() && req.failure().errorText) || '';
+    if (err.indexOf('ERR_ABORTED') !== -1) return;
+    pageErrors.push('request failed: ' + req.url() + ' (' + err + ')');
+  });
 
     const resp = await page.goto(base, { waitUntil: 'load', timeout: 30000 });
     check(!!resp && resp.status() === 200, 'page responds 200', resp && String(resp.status()));
@@ -184,13 +223,18 @@ function serve() {
     check(pageErrors.length === 0, 'no page errors during the whole run', pageErrors.slice(0, 3).join(' | '));
     check(consoleErrors.length === 0, 'no console errors during the whole run', consoleErrors.slice(0, 3).join(' | '));
   } catch (err) {
+    log('EXCEPTION: ' + (err && (err.stack || err.message)));
     check(false, 'browser run completed', err && (err.message || String(err)));
   } finally {
-    await browser.close();
+    try { await browser.close(); } catch (e) { /* ignore */ }
     server.close();
   }
 
   const failed = results.filter((r) => !r.ok).length;
-  console.log('\n' + results.length + ' checks, ' + failed + ' failed');
+  log('');
+  log(results.length + ' checks, ' + failed + ' failed');
+  if (pageErrors.length) log('page errors: ' + pageErrors.join(' | '));
+  if (consoleErrors.length) log('console errors: ' + consoleErrors.join(' | '));
+  writeReport();
   process.exit(failed === 0 ? 0 : 1);
 })();

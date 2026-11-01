@@ -8,7 +8,7 @@ on:
       - 'arena/**'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   chrome:
@@ -27,13 +27,24 @@ jobs:
         run: npm install --no-save --no-audit --no-fund puppeteer-core@23
 
       - name: Locate system Chrome
+        id: chrome
         run: |
-          which google-chrome || which google-chrome-stable || which chromium || which chromium-browser || true
-          google-chrome --version || true
+          set +e
+          for c in google-chrome google-chrome-stable chromium chromium-browser; do
+            p="$(command -v "$c")"
+            if [ -n "$p" ]; then
+              echo "path=$p" >> "$GITHUB_OUTPUT"
+              "$p" --version
+              exit 0
+            fi
+          done
+          echo "No system Chrome found; puppeteer will use its bundled browser if present."
 
       - name: Run the game in real Chrome
+        id: run
+        continue-on-error: true
         env:
-          CHROME_PATH: /usr/bin/google-chrome
+          CHROME_PATH: ${{ steps.chrome.outputs.path || '/usr/bin/google-chrome' }}
         run: node tests/browser.js
 
       - name: Upload screenshots
@@ -41,6 +52,28 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: browser-screenshots
-          path: screenshots/
+          path: |
+            screenshots/
+            ci/
           if-no-files-found: warn
           retention-days: 14
+
+      # Workflow logs live on a host some environments cannot read; publish the
+      # report (and the raw browser screenshots) to a branch instead.
+      - name: Publish report branch
+        if: always()
+        run: |
+          set -e
+          mkdir -p ci
+          git config user.name "browser-check"
+          git config user.email "browser-check@users.noreply.github.com"
+          git checkout -q -B ci/browser-report
+          git add -A ci screenshots
+          git commit -q -m "ci: browser report [skip ci]" || echo "nothing to commit"
+          git push -q --force origin ci/browser-report
+
+      - name: Fail if the game did not work
+        if: steps.run.outcome != 'success'
+        run: |
+          echo "The browser run failed — see ci/browser-report.log on the ci/browser-report branch."
+          exit 1
