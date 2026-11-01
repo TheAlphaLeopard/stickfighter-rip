@@ -1,11 +1,10 @@
-HTTP/2 200 
-last-modified: Sun, 18 May 2025 14:17:25 GMT
+HTTP/2 403 
 x-robots-tag: none
 content-security-policy: frame-ancestors *.translate.goog
-content-type: text/html
+content-type: text/html; charset=UTF-8
 cross-origin-opener-policy: unsafe-none
 cross-origin-resource-policy: cross-origin
-date: Sun, 01 Nov 2026 23:27:00 GMT
+date: Sun, 01 Nov 2026 23:28:40 GMT
 server: ESF
 x-xss-protection: 0
 x-content-type-options: nosniff
