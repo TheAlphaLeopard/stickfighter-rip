@@ -1,0 +1,15 @@
+HTTP/2 200 
+last-modified: Sun, 18 May 2025 14:17:25 GMT
+x-robots-tag: none
+content-security-policy: frame-ancestors *.translate.goog
+content-type: text/html
+cross-origin-opener-policy: unsafe-none
+cross-origin-resource-policy: cross-origin
+date: Sun, 01 Nov 2026 23:27:00 GMT
+server: ESF
+x-xss-protection: 0
+x-content-type-options: nosniff
+alt-svc: h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+accept-ranges: none
+vary: Accept-Encoding
+
