@@ -16,31 +16,41 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
-      - name: Fetch source pages and save raw responses
+      - name: Try alternative fetch routes
         run: |
-          mkdir -p probe
+          rm -rf probe && mkdir -p probe
           UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
-          i=0
-          for u in \
-            'https://stickfighter.io/' \
-            'https://stickfighter.io/games/stick-fighter/' \
-            'https://stickfighter.io/fullscreen/stick-fighter.html' \
-            'https://stickfighter.io/robots.txt' ; do
-            i=$((i+1))
-            echo "=== [$i] $u ==="
-            curl -sS -L -A "$UA" -H 'Accept: text/html,application/xhtml+xml' \
-                 --max-time 30 -o "probe/$i.html" -D "probe/$i.headers" "$u" || echo "curl failed for $u"
-            echo "--- headers ---"; head -c 1200 "probe/$i.headers" 2>/dev/null || true
-            echo "--- size ---"; wc -c "probe/$i.html" 2>/dev/null || true
-            echo "--- first 1200 bytes ---"; head -c 1200 "probe/$i.html" 2>/dev/null || true
+          T='https://stickfighter.io/fullscreen/stick-fighter.html'
+          E='https%3A%2F%2Fstickfighter.io%2Ffullscreen%2Fstick-fighter.html'
+          while IFS='|' read -r label url; do
+            [ -z "$label" ] && continue
+            echo "=== $label ==="
+            curl -sS -L -A "$UA" --max-time 25 -o "probe/$label.txt" -D "probe/$label.headers" "$url" \
+              || echo "curl failed for $label"
+            echo "--- headers ---"; head -c 400 "probe/$label.headers" 2>/dev/null || true
+            echo "--- size ---"; wc -c "probe/$label.txt" 2>/dev/null || true
+            echo "--- first 600 bytes ---"; head -c 600 "probe/$label.txt" 2>/dev/null || true
             echo
-          done
-      - name: Commit raw responses back to the branch
+          done <<EOF
+          google_translate|https://stickfighter-io.translate.goog/fullscreen/stick-fighter.html?_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en
+          translate_legacy|https://translate.google.com/translate?sl=auto&tl=en&u=$E
+          jina|https://r.jina.ai/$T
+          allorigins_raw|https://api.allorigins.win/raw?url=$E
+          allorigins_get|https://api.allorigins.win/get?url=$E
+          codetabs|https://api.codetabs.com/v1/proxy?quest=$T
+          cors_eu|https://cors.eu.org/$T
+          cors_workers|https://test.cors.workers.dev/?$T
+          thingproxy|https://thingproxy.freeboard.io/fetch/$T
+          wayback_id|https://web.archive.org/web/2025id_/$T
+          wayback_cdx|https://web.archive.org/cdx/search/cdx?url=stickfighter.io%2Ffullscreen%2F*&output=json&filter=statuscode:200&limit=20
+          urlscan|https://urlscan.io/api/v1/search/?q=domain%3Astickfighter.io&size=10
+          EOF
+      - name: Commit probe results back to the branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add probe
           git diff --cached --quiet && { echo "no new probe data"; exit 0; }
-          git commit -m "probe: raw source responses"
+          git commit -m "probe: alternative fetch routes"
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push origin "HEAD:${GITHUB_REF_NAME}"
