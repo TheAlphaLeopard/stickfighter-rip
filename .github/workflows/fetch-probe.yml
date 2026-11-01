@@ -1,0 +1,41 @@
+name: Fetch probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [arena/4d004fea-stickfighter-rip]
+    paths: [.github/workflows/fetch-probe.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch source pages and dump raw HTML
+        run: |
+          mkdir -p out
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+          i=0
+          for u in \
+            'https://stickfighter.io/' \
+            'https://stickfighter.io/games/stick-fighter/' \
+            'https://stickfighter.io/fullscreen/stick-fighter.html' \
+            'https://stickfighter.io/robots.txt' ; do
+            i=$((i+1))
+            echo "=== [$i] $u ==="
+            curl -sS -L -A "$UA" -H 'Accept: text/html,application/xhtml+xml' \
+                 --max-time 30 -o "out/$i.html" -D "out/$i.headers" "$u" || echo "curl failed for $u"
+            echo "--- headers ---"; head -c 1200 "out/$i.headers" 2>/dev/null || true
+            echo "--- size ---"; wc -c "out/$i.html" 2>/dev/null || true
+            echo "--- first 3000 bytes ---"; head -c 3000 "out/$i.html" 2>/dev/null || true
+            echo
+          done
+      - name: Upload raw responses
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-responses
+          path: out/
+          if-no-files-found: warn
