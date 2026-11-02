@@ -13,6 +13,102 @@
 </head>
 <body>
 
+<script>
+/* Compatibility shim for JAM/VFS players (fpile, fjam, srcdoc-based loaders).
+   Those players rewrite document.baseURI to a fake host such as
+   http://vfs.local/ and wrap window.fetch to serve files from their virtual
+   filesystem, but their wrapper only resolves *string* URLs. Construct 3's
+   RuntimeInterface.CreateWorker() calls fetch(new URL(...)) with a URL object,
+   so the worker scripts (dispatchworker.js / jobworker.js) escape the VFS and
+   fail with net::ERR_FAILED. Normalize URL objects to strings first; on a
+   normal static host this is a no-op (fetch accepts both). */
+(function () {
+    'use strict';
+
+    /* 1. fetch(): the VFS wrapper only resolves string URLs. */
+    var originalFetch = window.fetch;
+    if (typeof originalFetch === 'function') {
+        window.fetch = function (input, init) {
+            if (input && typeof input === 'object' && typeof input.href === 'string' &&
+                !(typeof Request !== 'undefined' && input instanceof Request)) {
+                input = input.href;
+            }
+            return originalFetch.call(window, input, init);
+        };
+    }
+
+    /* 2. FontFace(): srcdoc documents resolve font URLs against the *parent*
+       document, bypassing the VFS entirely (fonts/*.otf 404, text renders as
+       boxes). Only when a VFS player is active, resolve each url() through the
+       VFS-backed fetch() and hand FontFace a same-origin blob URL instead. */
+    var isVfs = false;
+    try {
+        isVfs = /vfs\.local/i.test(document.baseURI) || /^about:/.test(location.protocol);
+    } catch (e) {}
+    var NativeFontFace = window.FontFace;
+    if (!isVfs || typeof NativeFontFace !== 'function') return;
+
+    var URL_RE = /url\(\s*(['"]?)([^'")]+)\1\s*\)/gi;
+    var fontCache = new Map();
+
+    /* Resolve every url() in a FontFace source to a same-origin blob URL via
+       the VFS-backed fetch(). The VFS wrapper resolves string URLs; FontFace
+       itself resolves relative URLs against the parent document, which is why
+       the raw paths 404. */
+    function resolveFontSource(source) {
+        var urls = [];
+        source.replace(URL_RE, function (match, quote, url) {
+            if (!/^(data:|blob:)/i.test(url)) urls.push(url);
+            return match;
+        });
+        return Promise.all(urls.map(function (url) {
+            if (fontCache.has(url)) return Promise.resolve(fontCache.get(url));
+            return originalFetch.call(window, url).then(function (response) {
+                if (!response.ok) throw new Error('font fetch failed: ' + url);
+                return response.blob();
+            }).then(function (blob) {
+                var blobUrl = URL.createObjectURL(blob);
+                fontCache.set(url, blobUrl);
+                return blobUrl;
+            }).catch(function () { return url; });
+        })).then(function (resolved) {
+            var i = 0;
+            return source.replace(URL_RE, function (match, quote, url) {
+                if (/^(data:|blob:)/i.test(url)) return match;
+                return "url('" + (resolved[i++] || url) + "')";
+            });
+        });
+    }
+
+    var nativeLoad = NativeFontFace.prototype.load;
+
+    window.FontFace = function (family, source, descriptors) {
+        var face = new NativeFontFace(family, source, descriptors);
+        if (typeof source === 'string') {
+            Object.defineProperty(face, '__vfsSource', { value: source, configurable: true });
+        }
+        return face;
+    };
+    window.FontFace.prototype = NativeFontFace.prototype;
+
+    NativeFontFace.prototype.load = function () {
+        if (!this.__vfsSource) return nativeLoad.call(this);
+        var self = this;
+        return resolveFontSource(self.__vfsSource).then(function (newSource) {
+            /* Swap the unresolvable face for one backed by a blob URL before
+               the browser ever tries to fetch the parent-host path. */
+            var replacement = new NativeFontFace(self.family, newSource, {
+                style: self.style, weight: self.weight, stretch: self.stretch,
+                unicodeRange: self.unicodeRange, featureSettings: self.featureSettings,
+                display: self.display
+            });
+            try { document.fonts.delete(self); } catch (e) {}
+            document.fonts.add(replacement);
+            return nativeLoad.call(replacement);
+        });
+    };
+})();
+</script>
 <script src="poki-sdk.js"></script>
 <noscript>
 	<div id="notSupportedWrap">
